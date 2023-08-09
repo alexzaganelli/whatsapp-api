@@ -1,3 +1,42 @@
+/**
+ * ┌──────────────────────────────────────────────────────────────────────────────┐
+ * │ @author jrCleber                                                             │
+ * │ @filename whatsapp.service.ts                                                │
+ * │ Developed by: Cleber Wilson                                                  │
+ * │ Creation date: Nov 27, 2022                                                  │
+ * │ Contact: contato@codechat.dev                                                │
+ * ├──────────────────────────────────────────────────────────────────────────────┤
+ * │ @copyright © Cleber Wilson 2022. All rights reserved.                        │
+ * │ Licensed under the Apache License, Version 2.0                               │
+ * │                                                                              │
+ * │  @license "https://github.com/code-chat-br/whatsapp-api/blob/main/LICENSE"   │
+ * │                                                                              │
+ * │ You may not use this file except in compliance with the License.             │
+ * │ You may obtain a copy of the License at                                      │
+ * │                                                                              │
+ * │    http://www.apache.org/licenses/LICENSE-2.0                                │
+ * │                                                                              │
+ * │ Unless required by applicable law or agreed to in writing, software          │
+ * │ distributed under the License is distributed on an "AS IS" BASIS,            │
+ * │ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.     │
+ * │                                                                              │
+ * │ See the License for the specific language governing permissions and          │
+ * │ limitations under the License.                                               │
+ * │                                                                              │
+ * │ @class                                                                       │
+ * │ @constructs WAStartupService                                                 │
+ * │ @param {ConfigService} configService                                         │
+ * | @param {EventEmitter2} eventEmitter                                          │
+ * │ @param {RepositoryBroker} repository                                         │
+ * │ @param {RedisCache} cache                                                    │
+ * ├──────────────────────────────────────────────────────────────────────────────┤
+ * │ @important                                                                   │
+ * │ For any future changes to the code in this file, it is recommended to        │
+ * │ contain, together with the modification, the information of the developer    │
+ * │ who changed it and the date of modification.                                 │
+ * └──────────────────────────────────────────────────────────────────────────────┘
+ */
+
 import makeWASocket, {
   AnyMessageContent,
   BufferedEventData,
@@ -56,19 +95,19 @@ import { ContactRaw } from '../models/contact.model';
 import { ChatRaw } from '../models/chat.model';
 import { getMIMEType } from 'node-mime-types';
 import {
+  AudioMessageFileDto,
   ContactMessage,
+  MediaFileDto,
   MediaMessage,
   Options,
   SendAudioDto,
-  SendButtonDto,
   SendContactDto,
-  SendListDto,
   SendLocationDto,
   SendMediaDto,
   SendReactionDto,
   SendTextDto,
 } from '../dto/sendMessage.dto';
-import { arrayUnique, isBase64, isURL } from 'class-validator';
+import { isBase64, isNotEmpty, isURL } from 'class-validator';
 import {
   ArchiveChatDto,
   DeleteMessage,
@@ -134,7 +173,7 @@ export class WAStartupService {
   public get instanceName() {
     return this.instance.name;
   }
-  s;
+
   public get wuid() {
     return this.instance.wuid;
   }
@@ -933,9 +972,9 @@ export class WAStartupService {
     try {
       const prepareMedia = await prepareWAMessageMedia(
         {
-          [mediaMessage.mediatype]: isURL(mediaMessage.media)
+          [mediaMessage.mediatype]: isURL(mediaMessage.media as string)
             ? { url: mediaMessage.media }
-            : Buffer.from(mediaMessage.media, 'base64'),
+            : (mediaMessage.media as Buffer),
         } as any,
         { upload: this.client.waUploadToServer },
       );
@@ -944,13 +983,13 @@ export class WAStartupService {
 
       if (mediaMessage.mediatype === 'document' && !mediaMessage.fileName) {
         const regex = new RegExp(/.*\/(.+?)\./);
-        const arrayMatch = regex.exec(mediaMessage.media);
+        const arrayMatch = regex.exec(mediaMessage.media as string);
         mediaMessage.fileName = arrayMatch[1];
       }
 
       let mimetype: string;
 
-      if (isURL(mediaMessage.media)) {
+      if (typeof mediaMessage.media === 'string' && isURL(mediaMessage.media)) {
         mimetype = getMIMEType(mediaMessage.media);
       } else {
         mimetype = getMIMEType(mediaMessage.fileName);
@@ -988,6 +1027,24 @@ export class WAStartupService {
     );
   }
 
+  public async mediaFileMessage(data: MediaFileDto, file: Express.Multer.File) {
+    const generate = await this.prepareMediaMessage({
+      fileName: file.originalname,
+      media: file.buffer,
+      mediatype: data.mediatype,
+      caption: data?.caption,
+    });
+
+    return await this.sendMessageWithTyping(
+      data.number,
+      { ...generate.message },
+      {
+        presence: isNotEmpty(data?.presence) ? data.presence : undefined,
+        delay: data?.delay,
+      },
+    );
+  }
+
   public async audioWhatsapp(data: SendAudioDto) {
     return this.sendMessageWithTyping<AnyMessageContent>(
       data.number,
@@ -996,57 +1053,21 @@ export class WAStartupService {
           ? { url: data.audioMessage.audio }
           : Buffer.from(data.audioMessage.audio, 'base64'),
         ptt: true,
-        mimetype: 'audio/ogg; codecs=opus',
+        mimetype: 'audio/aac',
       },
       { presence: 'recording', delay: data?.options?.delay },
     );
   }
 
-  public async buttonMessage(data: SendButtonDto) {
-    const embeddedMedia: any = {};
-    let mediatype = 'TEXT';
-
-    if (data.buttonMessage?.mediaMessage) {
-      mediatype = data.buttonMessage.mediaMessage?.mediatype.toUpperCase() ?? 'TEXT';
-      embeddedMedia.mediaKey = mediatype.toLowerCase() + 'Message';
-      const generate = await this.prepareMediaMessage(data.buttonMessage.mediaMessage);
-      embeddedMedia.message = generate.message[embeddedMedia.mediaKey];
-      embeddedMedia.contentText = `*${data.buttonMessage.title}*\n\n${data.buttonMessage.description}`;
-    }
-
-    const btnItems = {
-      text: data.buttonMessage.buttons.map((btn) => btn.buttonText),
-      ids: data.buttonMessage.buttons.map((btn) => btn.buttonId),
-    };
-
-    if (!arrayUnique(btnItems.text) || !arrayUnique(btnItems.ids)) {
-      throw new BadRequestException(
-        'Button texts cannot be repeated',
-        'Button IDs cannot be repeated.',
-      );
-    }
-
-    return await this.sendMessageWithTyping(
+  public async audioWhatsAppFile(data: AudioMessageFileDto, file: Express.Multer.File) {
+    return this.sendMessageWithTyping<AnyMessageContent>(
       data.number,
       {
-        buttonsMessage: {
-          text: !embeddedMedia?.mediaKey ? data.buttonMessage.title : undefined,
-          contentText: embeddedMedia?.contentText ?? data.buttonMessage.description,
-          footerText: data.buttonMessage?.footerText,
-          buttons: data.buttonMessage.buttons.map((button) => {
-            return {
-              buttonText: {
-                displayText: button.buttonText,
-              },
-              buttonId: button.buttonId,
-              type: 1,
-            };
-          }),
-          headerType: proto.Message.ButtonsMessage.HeaderType[mediatype],
-          [embeddedMedia?.mediaKey]: embeddedMedia?.message,
-        },
+        audio: file.buffer,
+        ptt: true,
+        mimetype: 'audio/aac',
       },
-      data?.options,
+      { presence: 'recording', delay: data?.delay },
     );
   }
 
@@ -1059,23 +1080,6 @@ export class WAStartupService {
           degreesLongitude: data.locationMessage.longitude,
           name: data.locationMessage?.name,
           address: data.locationMessage?.address,
-        },
-      },
-      data?.options,
-    );
-  }
-
-  public async listMessage(data: SendListDto) {
-    return await this.sendMessageWithTyping(
-      data.number,
-      {
-        listMessage: {
-          title: data.listMessage.title,
-          description: data.listMessage.description,
-          buttonText: data.listMessage?.buttonText,
-          footerText: data.listMessage?.footerText,
-          sections: data.listMessage.sections,
-          listType: 1,
         },
       },
       data?.options,

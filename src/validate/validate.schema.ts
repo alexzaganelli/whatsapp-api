@@ -1,3 +1,49 @@
+/**
+ * ┌──────────────────────────────────────────────────────────────────────────────┐
+ * │ @author jrCleber                                                             │
+ * │ @filename validate.schema.ts                                                 │
+ * │ Developed by: Cleber Wilson                                                  │
+ * │ Creation date: Nov 27, 2022                                                  │
+ * │ Contact: contato@codechat.dev                                                │
+ * ├──────────────────────────────────────────────────────────────────────────────┤
+ * │ @copyright © Cleber Wilson 2022. All rights reserved.                        │
+ * │ Licensed under the Apache License, Version 2.0                               │
+ * │                                                                              │
+ * │  @license "https://github.com/code-chat-br/whatsapp-api/blob/main/LICENSE"   │
+ * │                                                                              │
+ * │ You may not use this file except in compliance with the License.             │
+ * │ You may obtain a copy of the License at                                      │
+ * │                                                                              │
+ * │    http://www.apache.org/licenses/LICENSE-2.0                                │
+ * │                                                                              │
+ * │ Unless required by applicable law or agreed to in writing, software          │
+ * │ distributed under the License is distributed on an "AS IS" BASIS,            │
+ * │ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.     │
+ * │                                                                              │
+ * │ See the License for the specific language governing permissions and          │
+ * │ limitations under the License.                                               │
+ * │                                                                              │
+ * │ @constant isNotEmpty @constant instanceNameSchema                            │
+ * │ @constant optionsSchema @constant numberDefinition                           │
+ * │ @constant textMessageSchema @constant mediaMessageSchema                     │
+ * │ @constant locationMessageSchema @constant mediaFileMessageSchema             │
+ * │ @constant contactMessageSchema @constant reactionMessageSchema               │
+ * │ @constant whatsappNumberSchema @constant readMessageSchema                   │
+ * │ @constant archiveChatSchema @constant deleteMessageSchema                    │
+ * │ @constant contactValidateSchema @constant profilePictureSchema               │
+ * │ @constant messageValidateSchema @constant messageUpSchema                    │
+ * │ @constant createGroupSchema @constant groupJidSchema                         │
+ * │ @constant updateParticipantsSchema @constant updateGroupPicture              │
+ * │ @constant webhookSchema @constant oldTokenSchema                             │
+ * │ @constant audioMessageSchema                                                 │
+ * ├──────────────────────────────────────────────────────────────────────────────┤
+ * │ @important                                                                   │
+ * │ For any future changes to the code in this file, it is recommended to        │
+ * │ contain, together with the modification, the information of the developer    │
+ * │ who changed it and the date of modification.                                 │
+ * └──────────────────────────────────────────────────────────────────────────────┘
+ */
+
 import { JSONSchema7, JSONSchema7Definition } from 'json-schema';
 import { v4 } from 'uuid';
 
@@ -99,6 +145,20 @@ export const mediaMessageSchema: JSONSchema7 = {
   required: ['mediaMessage', 'number'],
 };
 
+export const mediaFileMessageSchema: JSONSchema7 = {
+  $id: v4(),
+  type: 'object',
+  properties: {
+    number: { ...numberDefinition },
+    caption: { type: 'string' },
+    mediatype: { type: 'string', enum: ['image', 'document', 'video', 'audio'] },
+    presence: { type: 'string', enum: ['composing', 'recording'] },
+    delay: { type: 'string' },
+  },
+  required: ['mediatype', 'number'],
+  ...isNotEmpty('caption', 'mediatype', 'number', 'delay', 'presence'),
+};
+
 export const audioMessageSchema: JSONSchema7 = {
   $id: v4(),
   type: 'object',
@@ -110,55 +170,22 @@ export const audioMessageSchema: JSONSchema7 = {
       properties: {
         audio: { type: 'string' },
       },
-      required: ['audio'],
+      required: ['audio', 'number'],
       ...isNotEmpty('audio'),
     },
   },
   required: ['audioMessage', 'number'],
 };
 
-export const buttonMessageSchema: JSONSchema7 = {
+export const audioFileMessageSchema: JSONSchema7 = {
   $id: v4(),
   type: 'object',
   properties: {
     number: { ...numberDefinition },
-    options: { ...optionsSchema },
-    buttonMessage: {
-      type: 'object',
-      properties: {
-        title: { type: 'string' },
-        description: { type: 'string' },
-        footerText: { type: 'string' },
-        buttons: {
-          type: 'array',
-          minItems: 1,
-          uniqueItems: true,
-          items: {
-            type: 'object',
-            properties: {
-              buttonText: { type: 'string' },
-              buttonId: { type: 'string' },
-            },
-            required: ['buttonText', 'buttonId'],
-            ...isNotEmpty('buttonText', 'buttonId'),
-          },
-        },
-        mediaMessage: {
-          type: 'object',
-          properties: {
-            media: { type: 'string' },
-            fileName: { type: 'string' },
-            mediatype: { type: 'string', enum: ['image', 'document', 'video'] },
-          },
-          required: ['media', 'mediatype'],
-          ...isNotEmpty('media', 'fileName'),
-        },
-      },
-      required: ['title', 'buttons'],
-      ...isNotEmpty('title', 'description'),
-    },
+    delay: { type: 'string' },
   },
-  required: ['number', 'buttonMessage'],
+  required: ['number'],
+  ...isNotEmpty('delay'),
 };
 
 export const locationMessageSchema: JSONSchema7 = {
@@ -176,59 +203,10 @@ export const locationMessageSchema: JSONSchema7 = {
         address: { type: 'string' },
       },
       required: ['latitude', 'longitude'],
-      ...isNotEmpty('name', 'addresss'),
+      ...isNotEmpty('name', 'address'),
     },
   },
   required: ['number', 'locationMessage'],
-};
-
-export const listMessageSchema: JSONSchema7 = {
-  $id: v4(),
-  type: 'object',
-  properties: {
-    number: { ...numberDefinition },
-    options: { ...optionsSchema },
-    listMessage: {
-      type: 'object',
-      properties: {
-        title: { type: 'string' },
-        description: { type: 'string' },
-        footerText: { type: 'string' },
-        buttonText: { type: 'string' },
-        sections: {
-          type: 'array',
-          minItems: 1,
-          uniqueItems: true,
-          items: {
-            type: 'object',
-            properties: {
-              title: { type: 'string' },
-              rows: {
-                type: 'array',
-                minItems: 1,
-                uniqueItems: true,
-                items: {
-                  type: 'object',
-                  properties: {
-                    title: { type: 'string' },
-                    description: { type: 'string' },
-                    rowId: { type: 'string' },
-                  },
-                  required: ['title', 'description', 'rowId'],
-                  ...isNotEmpty('title', 'description', 'rowId'),
-                },
-              },
-            },
-            required: ['title', 'rows'],
-            ...isNotEmpty('title'),
-          },
-        },
-      },
-      required: ['title', 'description', 'buttonText', 'sections'],
-      ...isNotEmpty('title', 'description', 'buttonText', 'footerText'),
-    },
-  },
-  required: ['number', 'listMessage'],
 };
 
 export const contactMessageSchema: JSONSchema7 = {
