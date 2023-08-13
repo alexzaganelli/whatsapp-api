@@ -388,6 +388,8 @@ export class WAStartupService {
         │    CONNECTED TO WHATSAPP     │
         └──────────────────────────────┘`.replace(/^ +/gm, '  '),
       );
+
+      this.client.sendPresenceUpdate('unavailable');
     }
   }
 
@@ -693,6 +695,8 @@ export class WAStartupService {
 
       await this.repository.message.insert([messageRaw], database.SAVE_DATA.NEW_MESSAGE);
       await this.sendDataWebhook(Events.MESSAGES_UPSERT, messageRaw);
+
+      this.client.sendPresenceUpdate('unavailable');
     },
 
     'messages.update': async (args: WAMessageUpdate[], database: Database) => {

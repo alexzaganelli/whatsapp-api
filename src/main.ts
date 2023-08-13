@@ -46,6 +46,9 @@ import { HttpStatus, router } from './whatsapp/routers/index.router';
 import 'express-async-errors';
 import { ServerUP } from './utils/server-up';
 
+import util from 'util';
+util.inspect.defaultOptions.depth = null; // enable full object reproting in console.log
+
 function initWA() {
   waMonitor.loadInstance();
 }
